@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guanabara Check-in QR</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    
+    <style>
+        :root { --blue: #004a99; --green: #28a745; --red: #dc3545; --bg: #f1f5f9; --wsapp: #25d366; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        header { background: var(--blue); color: white; padding: 15px; text-align: center; }
+        .container { max-width: 500px; margin: auto; padding: 15px; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input[type="text"], input[type="time"] { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .btn { border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; color: white; font-size: 16px; margin-top: 10px; }
+        .btn-blue { background: var(--blue); }
+        .btn-green { background: var(--green); }
+        .btn-whatsapp { background: var(--wsapp); }
+        .btn-qr { background: #6b21a8; }
+        .viagem-card { background: white; padding: 15px; border-radius: 10px; border-left: 6px solid var(--blue); margin-bottom: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .p-row { display: flex; align-items: center; padding: 12px; background: white; border-bottom: 1px solid #eee; }
+        .p-row.ok { background: #e6ffed; border-left: 5px solid var(--green); }
+        .p-row input { width: 28px; height: 28px; margin-right: 15px; }
+        .p-info { flex-grow: 1; }
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 15px; }
+        #view-lista, #loader { display: none; }
+    </style>
+</head>
+<body>
+
+<header><h2 style="margin:0">Guanabara Recife</h2></header>
+
+<div id="view-menu" class="container">
+    <div class="card">
+        <h4 style="margin:0">Nova Viagem</h4>
+        <input type="time" id="input-hora">
+        <input type="text" id="input-destino" placeholder="Ex: Fortaleza Leito">
+        <button class="btn btn-blue" onclick="adicionarViagem()">CRIAR LISTA</button>
+    </div>
+    <div id="lista-viagens-container"></div>
+</div>
+
+<div id="view-lista" class="container">
+    <button class="btn btn-blue" style="background:#64748b" onclick="irParaMenu()">← Voltar</button>
+    
+    <div class="card" style="margin-top:15px">
+        <h3 id="titulo-viagem" style="margin:0"></h3>
+        
+        <div id="reader"></div>
+        <button class="btn btn-qr" id="btn-scan" onclick="toggleScanner()">📷 LER QR CODE DO BILHETE</button>
+        
+        <input type="file" id="file-input" accept="application/pdf" style="display:none">
+        <button class="btn btn-blue" onclick="document.getElementById('file-input').click()">📥 IMPORTAR PDF</button>
+    </div>
+
+    <div id="loader" style="text-align:center; padding:20px;">⚙️ Lendo passageiros...</div>
+    <div id="passageiros-lista"></div>
+    
+    <div id="acoes-lista" style="display:none">
+        <button class="btn btn-whatsapp" onclick="enviarWhatsApp()">📱 ENVIAR RESUMO WHATSAPP</button>
+        <button class="btn btn-green" onclick="finalizarEmbarque()">📄 GERAR PDF FINAL</button>
+    </div>
+</div>
+
+<script>
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+    let viagens = JSON.parse(localStorage.getItem('guanabara_qr_v1')) || [];
+    let atualIdx = null;
+    let html5QrCode = null;
+
+    window.onload = renderMenu;
+
+    function salvar() { localStorage.setItem('guanabara_qr_v1', JSON.stringify(viagens)); }
+
+    function adicionarViagem() {
+        const h = document.getElementById('input-hora').value;
+        const d = document.getElementById('input-destino').value;
+        if(!h || !d) return alert("Preencha todos os campos!");
+        viagens.push({ id: Date.now(), hora: h, destino: d, passageiros: [] });
+        salvar(); renderMenu();
+    }
+
+    function renderMenu() {
+        const c = document.getElementById('lista-viagens-container');
+        c.innerHTML = "";
+        viagens.forEach((v, i) => {
+            const div = document.createElement('div');
+            div.className = 'viagem-card';
+            div.onclick = () => abrirViagem(i);
+            div.innerHTML = `<div><strong>${v.hora}</strong> - ${v.destino}</div><div>${v.passageiros.length} pax</div>`;
+            c.appendChild(div);
+        });
+    }
+
+    function abrirViagem(i) {
+        atualIdx = i;
+        document.getElementById('view-menu').style.display = 'none';
+        document.getElementById('view-lista').style.display = 'block';
+        document.getElementById('titulo-viagem').innerText = viagens[i].hora + " - " + viagens[i].destino;
+        renderPassageiros();
+    }
+
+    function irParaMenu() {
+        if(html5QrCode) html5QrCode.stop();
+        document.getElementById('view-menu').style.display = 'block';
+        document.getElementById('view-lista').style.display = 'none';
+        renderMenu();
+    }
+
+    // Lógica do Scanner
+    function toggleScanner() {
+        const readerDiv = document.getElementById('reader');
+        if (readerDiv.style.display === 'block') {
+            html5QrCode.stop();
+            readerDiv.style.display = 'none';
+            return;
+        }
+
+        readerDiv.style.display = 'block';
+        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            onScanSuccess
+        );
+    }
+
+    function onScanSuccess(decodedText) {
+        // Lógica para extrair os 6 dígitos antes da sigla do estado (Ex: PB, PE, CE, RN)
+        // O regex busca 6 números seguidos de 2 letras maiúsculas
+        const match = decodedText.match(/(\d{6})[A-Z]{2}/);
+        
+        if (match) {
+            const numeroBilhete = match[1];
+            processarCheckInQR(numeroBilhete);
+            
+            // Feedback sonoro rápido (opcional)
+            navigator.vibrate(100);
+        }
+    }
+
+    function processarCheckInQR(bilhete) {
+        const lista = viagens[atualIdx].passageiros;
+        const passageiro = lista.find(p => p.bilhete === bilhete);
+
+        if (passageiro) {
+            if (!passageiro.ok) {
+                passageiro.ok = true;
+                salvar();
+                renderPassageiros();
+                alert(`✅ CHECK-IN: Poltrona ${passageiro.polt} - ${passageiro.nome}`);
+            } else {
+                alert(`⚠️ Atenção: Bilhete ${bilhete} já embarcado!`);
+            }
+        } else {
+            alert(`❌ Bilhete ${bilhete} não encontrado nesta lista.`);
+        }
+    }
+
+    // Importação de PDF (conforme fonte [cite: 25])
+    document.getElementById('file-input').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        document.getElementById('loader').style.display = 'block';
+        const reader = new FileReader();
+        reader.onload = async function() {
+            const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
+            let encontrados = [];
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const text = await page.getTextContent();
+                let lines = {};
+                text.items.forEach(it => {
+                    let y = Math.round(it.transform[5]);
+                    if(!lines[y]) lines[y] = [];
+                    lines[y].push({ x: it.transform[4], str: it.str });
+                });
+                Object.keys(lines).forEach(y => {
+                    let sortedLine = lines[y].sort((a,b) => a.x - b.x).map(it => it.str).join(" ");
+                    let raw = sortedLine.toUpperCase();
+                    // Filtro de embarque em Recife 
+                    if ((raw.includes("RECIFE") || raw.includes("CAXANGA")) && /^\d{1,2}\s/.test(raw.trim())) {
+                        let polt = raw.trim().match(/^(\d{1,2})/)[1];
+                        let bilhete = raw.match(/\d{6}/) ? raw.match(/\d{6}/)[0] : "N/A";
+                        let nome = raw.replace(/^\d{1,2}/, '').split("RECIFE")[0].split("(")[0].trim();
+                        encontrados.push({ polt, nome, bilhete, ok: false });
+                    }
+                });
+            }
+            viagens[atualIdx].passageiros = encontrados.sort((a,b) => a.polt - b.polt);
+            salvar(); renderPassageiros();
+            document.getElementById('loader').style.display = 'none';
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    function renderPassageiros() {
+        const l = document.getElementById('passageiros-lista');
+        const acoes = document.getElementById('acoes-lista');
+        l.innerHTML = "";
+        const pax = viagens[atualIdx].passageiros;
+        if(pax.length > 0) {
+            acoes.style.display = "block";
+            pax.forEach((p, i) => {
+                const div = document.createElement('div');
+                div.className = `p-row ${p.ok ? 'ok' : ''}`;
+                div.innerHTML = `<input type="checkbox" ${p.ok ? 'checked' : ''} onclick="toggle(${i})">
+                    <div class="p-info"><span class="p-name">${p.polt} - ${p.nome}</span>
+                    <span class="p-meta">Bilhete: ${p.bilhete}</span></div>`;
+                l.appendChild(div);
+            });
+        } else {
+            acoes.style.display = "none";
+        }
+    }
+
+    function toggle(i) {
+        viagens[atualIdx].passageiros[i].ok = !viagens[atualIdx].passageiros[i].ok;
+        salvar(); renderPassageiros();
+    }
+
+    function enviarWhatsApp() {
+        const v = viagens[atualIdx];
+        const embarcados = v.passageiros.filter(p => p.ok).length;
+        const faltasArr = v.passageiros.filter(p => !p.ok).map(p => p.polt);
+        const agora = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+        const msg = encodeURIComponent(`*RESUMO DE EMBARQUE*\n\n🕒 *Horário:* ${v.hora}\n✅ *Total de embarques:* ${embarcados}\n❌ *Faltantes:* ${faltasArr.length} (Poltrona: ${faltasArr.join(", ")})\n🛰️ *Monotrip:* OK\n🏁 *Horário de saída:* ${agora}`);
+        window.open(`https://wa.me/?text=${msg}`);
+    }
+
+    function finalizarEmbarque() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const v = viagens[atualIdx];
+        doc.text("Relatório de Embarque: " + v.hora + " - " + v.destino, 20, 20);
+        let y = 40;
+        v.passageiros.forEach(p => {
+            doc.text(`${p.polt} | ${p.nome.substring(0,25)} | ${p.bilhete} | ${p.ok ? 'OK' : 'FALTA'}`, 20, y);
+            y += 8;
+        });
+        doc.save(`Embarque_${v.hora}.pdf`);
+    }
+</script>
+</body>
+</html>
