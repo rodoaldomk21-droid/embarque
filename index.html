@@ -2,87 +2,92 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guanabara Check-in QR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Guanabara Check-in PRO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
-    
     <style>
         :root { --blue: #004a99; --green: #28a745; --red: #dc3545; --bg: #f1f5f9; --wsapp: #25d366; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 0; }
-        header { background: var(--blue); color: white; padding: 15px; text-align: center; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        header { background: var(--blue); color: white; padding: 15px; text-align: center; font-weight: bold; }
         .container { max-width: 500px; margin: auto; padding: 15px; }
-        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        input[type="text"], input[type="time"] { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        .btn { border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; color: white; font-size: 16px; margin-top: 10px; }
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; position: relative; }
+        .btn { border: none; padding: 16px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; color: white; font-size: 16px; margin-top: 10px; display: block; text-align: center; text-decoration: none; }
         .btn-blue { background: var(--blue); }
-        .btn-green { background: var(--green); }
-        .btn-whatsapp { background: var(--wsapp); }
         .btn-qr { background: #6b21a8; }
-        .viagem-card { background: white; padding: 15px; border-radius: 10px; border-left: 6px solid var(--blue); margin-bottom: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .p-row { display: flex; align-items: center; padding: 12px; background: white; border-bottom: 1px solid #eee; }
-        .p-row.ok { background: #e6ffed; border-left: 5px solid var(--green); }
-        .p-row input { width: 28px; height: 28px; margin-right: 15px; }
-        .p-info { flex-grow: 1; }
-        #reader { width: 100%; border-radius: 12px; overflow: hidden; display: none; margin-bottom: 15px; }
-        #view-lista, #loader { display: none; }
+        .btn-whatsapp { background: var(--wsapp); }
+        .btn-del { background: var(--red); width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; position: absolute; right: 15px; top: 15px; }
+        .resumo-box { display: flex; justify-content: space-between; margin-bottom: 15px; gap: 10px; }
+        .resumo-item { flex: 1; padding: 10px; border-radius: 10px; text-align: center; color: white; font-weight: bold; font-size: 14px; }
+        .p-row { display: flex; align-items: center; padding: 15px; background: white; border-bottom: 1px solid #eee; }
+        .p-row.ok { background: #e6ffed; border-left: 6px solid var(--green); }
+        #reader { width: 100%; border-radius: 15px; overflow: hidden; margin-bottom: 15px; background: #000; display: none; }
+        #loader { display:none; text-align:center; padding: 10px; color: var(--blue); font-weight: bold; }
+        .p-info { margin-left:10px; flex-grow: 1; }
+        .p-num { color: #d97706; font-size: 13px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<header><h2 style="margin:0">Guanabara Recife</h2></header>
+<header>GUANABARA - RECIFE</header>
 
 <div id="view-menu" class="container">
     <div class="card">
-        <h4 style="margin:0">Nova Viagem</h4>
-        <input type="time" id="input-hora">
-        <input type="text" id="input-destino" placeholder="Ex: Fortaleza Leito">
+        <h3>Nova Viagem</h3>
+        <input type="time" id="input-hora" style="width:100%; padding:12px; margin-bottom:10px; border:1px solid #ccc; border-radius:8px; box-sizing: border-box;">
+        <input type="text" id="input-destino" placeholder="Destino (ex: Fortaleza)" style="width:100%; padding:12px; border:1px solid #ccc; border-radius:8px; box-sizing: border-box;">
         <button class="btn btn-blue" onclick="adicionarViagem()">CRIAR LISTA</button>
     </div>
     <div id="lista-viagens-container"></div>
 </div>
 
-<div id="view-lista" class="container">
-    <button class="btn btn-blue" style="background:#64748b" onclick="irParaMenu()">← Voltar</button>
+<div id="view-lista" class="container" style="display:none">
+    <button onclick="irParaMenu()" style="background:none; border:none; color:var(--blue); font-weight:bold; margin-bottom:15px; cursor:pointer;">← VOLTAR</button>
     
-    <div class="card" style="margin-top:15px">
-        <h3 id="titulo-viagem" style="margin:0"></h3>
-        
-        <div id="reader"></div>
-        <button class="btn btn-qr" id="btn-scan" onclick="toggleScanner()">📷 LER QR CODE DO BILHETE</button>
-        
-        <input type="file" id="file-input" accept="application/pdf" style="display:none">
-        <button class="btn btn-blue" onclick="document.getElementById('file-input').click()">📥 IMPORTAR PDF</button>
+    <div class="resumo-box">
+        <div class="resumo-item" style="background: var(--green);">Embarcados: <span id="count-ok">0</span></div>
+        <div class="resumo-item" style="background: var(--red);">Faltam: <span id="count-faltam">0</span></div>
     </div>
 
-    <div id="loader" style="text-align:center; padding:20px;">⚙️ Lendo passageiros...</div>
+    <div class="card">
+        <h2 id="titulo-viagem" style="margin-top:0"></h2>
+        <div id="reader"></div>
+        <button class="btn btn-qr" onclick="toggleScanner()">📷 ESCANEAR QR CODE</button>
+        <button class="btn btn-blue" onclick="document.getElementById('file-input').click()">📥 CARREGAR PDF</button>
+        <input type="file" id="file-input" accept="application/pdf" style="display:none">
+        <div id="loader">⚙️ LENDO BILHETES...</div>
+    </div>
+
     <div id="passageiros-lista"></div>
-    
     <div id="acoes-lista" style="display:none">
-        <button class="btn btn-whatsapp" onclick="enviarWhatsApp()">📱 ENVIAR RESUMO WHATSAPP</button>
-        <button class="btn btn-green" onclick="finalizarEmbarque()">📄 GERAR PDF FINAL</button>
+        <button class="btn btn-whatsapp" onclick="enviarWhatsApp()">📱 RESUMO WHATSAPP</button>
     </div>
 </div>
 
 <script>
-    const pdfjsLib = window['pdfjs-dist/build/pdf'];
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-
-    let viagens = JSON.parse(localStorage.getItem('guanabara_qr_v1')) || [];
+    let viagens = JSON.parse(localStorage.getItem('gb_final_v30')) || [];
     let atualIdx = null;
     let html5QrCode = null;
+    const audioBip = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
 
-    window.onload = renderMenu;
-
-    function salvar() { localStorage.setItem('guanabara_qr_v1', JSON.stringify(viagens)); }
+    function salvar() { localStorage.setItem('gb_final_v30', JSON.stringify(viagens)); }
 
     function adicionarViagem() {
         const h = document.getElementById('input-hora').value;
         const d = document.getElementById('input-destino').value;
-        if(!h || !d) return alert("Preencha todos os campos!");
+        if(!h || !d) return alert("Preencha os dados!");
         viagens.push({ id: Date.now(), hora: h, destino: d, passageiros: [] });
         salvar(); renderMenu();
+    }
+
+    function excluirViagem(index, event) {
+        event.stopPropagation();
+        if(confirm("Deseja apagar esta viagem definitivamente?")) {
+            viagens.splice(index, 1);
+            salvar();
+            renderMenu();
+        }
     }
 
     function renderMenu() {
@@ -90,9 +95,14 @@
         c.innerHTML = "";
         viagens.forEach((v, i) => {
             const div = document.createElement('div');
-            div.className = 'viagem-card';
+            div.className = 'card';
+            div.style.cursor = 'pointer';
             div.onclick = () => abrirViagem(i);
-            div.innerHTML = `<div><strong>${v.hora}</strong> - ${v.destino}</div><div>${v.passageiros.length} pax</div>`;
+            div.innerHTML = `
+                <button class="btn btn-del" onclick="excluirViagem(${i}, event)">🗑️</button>
+                <strong>${v.hora} - ${v.destino}</strong><br>
+                <small>${v.passageiros.length} passageiros total</small>
+            `;
             c.appendChild(div);
         });
     }
@@ -112,63 +122,38 @@
         renderMenu();
     }
 
-    // Lógica do Scanner
-    function toggleScanner() {
-        const readerDiv = document.getElementById('reader');
-        if (readerDiv.style.display === 'block') {
-            html5QrCode.stop();
-            readerDiv.style.display = 'none';
+    async function toggleScanner() {
+        const r = document.getElementById('reader');
+        audioBip.play().then(() => { audioBip.pause(); audioBip.currentTime = 0; }).catch(() => {});
+        if(html5QrCode && html5QrCode.isScanning) {
+            await html5QrCode.stop();
+            r.style.display = 'none';
             return;
         }
-
-        readerDiv.style.display = 'block';
+        r.style.display = 'block';
         html5QrCode = new Html5Qrcode("reader");
-        html5QrCode.start(
-            { facingMode: "environment" }, 
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            onScanSuccess
-        );
-    }
-
-    function onScanSuccess(decodedText) {
-        // Lógica para extrair os 6 dígitos antes da sigla do estado (Ex: PB, PE, CE, RN)
-        // O regex busca 6 números seguidos de 2 letras maiúsculas
-        const match = decodedText.match(/(\d{6})[A-Z]{2}/);
-        
-        if (match) {
-            const numeroBilhete = match[1];
-            processarCheckInQR(numeroBilhete);
-            
-            // Feedback sonoro rápido (opcional)
-            navigator.vibrate(100);
-        }
-    }
-
-    function processarCheckInQR(bilhete) {
-        const lista = viagens[atualIdx].passageiros;
-        const passageiro = lista.find(p => p.bilhete === bilhete);
-
-        if (passageiro) {
-            if (!passageiro.ok) {
-                passageiro.ok = true;
-                salvar();
-                renderPassageiros();
-                alert(`✅ CHECK-IN: Poltrona ${passageiro.polt} - ${passageiro.nome}`);
-            } else {
-                alert(`⚠️ Atenção: Bilhete ${bilhete} já embarcado!`);
+        html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (text) => {
+            const match = text.match(/(\d{6})[A-Z]{2}/);
+            if(match) {
+                const b = match[1];
+                const p = viagens[atualIdx].passageiros.find(x => x.bilhete === b);
+                if(p && !p.ok) {
+                    p.ok = true;
+                    audioBip.play();
+                    salvar(); renderPassageiros();
+                }
             }
-        } else {
-            alert(`❌ Bilhete ${bilhete} não encontrado nesta lista.`);
-        }
+        });
     }
 
-    // Importação de PDF (conforme fonte [cite: 25])
     document.getElementById('file-input').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if(!file) return;
         document.getElementById('loader').style.display = 'block';
         const reader = new FileReader();
         reader.onload = async function() {
+            const pdfjsLib = window['pdfjs-dist/build/pdf'];
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
             const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
             let encontrados = [];
             for (let i = 1; i <= pdf.numPages; i++) {
@@ -181,18 +166,17 @@
                     lines[y].push({ x: it.transform[4], str: it.str });
                 });
                 Object.keys(lines).forEach(y => {
-                    let sortedLine = lines[y].sort((a,b) => a.x - b.x).map(it => it.str).join(" ");
-                    let raw = sortedLine.toUpperCase();
-                    // Filtro de embarque em Recife 
-                    if ((raw.includes("RECIFE") || raw.includes("CAXANGA")) && /^\d{1,2}\s/.test(raw.trim())) {
-                        let polt = raw.trim().match(/^(\d{1,2})/)[1];
-                        let bilhete = raw.match(/\d{6}/) ? raw.match(/\d{6}/)[0] : "N/A";
-                        let nome = raw.replace(/^\d{1,2}/, '').split("RECIFE")[0].split("(")[0].trim();
+                    let lineStr = lines[y].sort((a,b) => a.x - b.x).map(it => it.str).join(" ").toUpperCase();
+                    if ((lineStr.includes("RECIFE") || lineStr.includes("CAXANGA")) && /^\d{1,2}\s/.test(lineStr.trim())) {
+                        let polt = lineStr.trim().match(/^(\d{1,2})/)[1];
+                        let numeros6 = lineStr.match(/\b\d{6}\b/g);
+                        let bilhete = numeros6 ? numeros6[numeros6.length - 1] : "N/A";
+                        let nome = lineStr.replace(/^\d{1,2}/, '').split("RECIFE")[0].replace(/\d{7,}/g, '').replace(/\(.*\)/g, '').trim();
                         encontrados.push({ polt, nome, bilhete, ok: false });
                     }
                 });
             }
-            viagens[atualIdx].passageiros = encontrados.sort((a,b) => a.polt - b.polt);
+            viagens[atualIdx].passageiros = encontrados.sort((a,b) => parseInt(a.polt) - parseInt(b.polt));
             salvar(); renderPassageiros();
             document.getElementById('loader').style.display = 'none';
         };
@@ -201,50 +185,41 @@
 
     function renderPassageiros() {
         const l = document.getElementById('passageiros-lista');
-        const acoes = document.getElementById('acoes-lista');
         l.innerHTML = "";
         const pax = viagens[atualIdx].passageiros;
-        if(pax.length > 0) {
-            acoes.style.display = "block";
-            pax.forEach((p, i) => {
-                const div = document.createElement('div');
-                div.className = `p-row ${p.ok ? 'ok' : ''}`;
-                div.innerHTML = `<input type="checkbox" ${p.ok ? 'checked' : ''} onclick="toggle(${i})">
-                    <div class="p-info"><span class="p-name">${p.polt} - ${p.nome}</span>
-                    <span class="p-meta">Bilhete: ${p.bilhete}</span></div>`;
-                l.appendChild(div);
-            });
-        } else {
-            acoes.style.display = "none";
-        }
+        
+        // Atualizar Contadores
+        const emb = pax.filter(p => p.ok).length;
+        const falta = pax.length - emb;
+        document.getElementById('count-ok').innerText = emb;
+        document.getElementById('count-faltam').innerText = falta;
+
+        document.getElementById('acoes-lista').style.display = pax.length ? "block" : "none";
+        pax.forEach((p, i) => {
+            const div = document.createElement('div');
+            div.className = `p-row ${p.ok ? 'ok' : ''}`;
+            div.innerHTML = `<input type="checkbox" ${p.ok ? 'checked' : ''} onclick="toggle(${i})">
+                <div class="p-info"><strong>${p.polt} - ${p.nome}</strong><br><span class="p-num">BILHETE: ${p.bilhete}</span></div>`;
+            l.appendChild(div);
+        });
     }
 
-    function toggle(i) {
-        viagens[atualIdx].passageiros[i].ok = !viagens[atualIdx].passageiros[i].ok;
-        salvar(); renderPassageiros();
+    function toggle(i) { 
+        viagens[atualIdx].passageiros[i].ok = !viagens[atualIdx].passageiros[i].ok; 
+        salvar(); 
+        renderPassageiros(); 
     }
 
     function enviarWhatsApp() {
         const v = viagens[atualIdx];
-        const embarcados = v.passageiros.filter(p => p.ok).length;
-        const faltasArr = v.passageiros.filter(p => !p.ok).map(p => p.polt);
-        const agora = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
-        const msg = encodeURIComponent(`*RESUMO DE EMBARQUE*\n\n🕒 *Horário:* ${v.hora}\n✅ *Total de embarques:* ${embarcados}\n❌ *Faltantes:* ${faltasArr.length} (Poltrona: ${faltasArr.join(", ")})\n🛰️ *Monotrip:* OK\n🏁 *Horário de saída:* ${agora}`);
+        const emb = v.passageiros.filter(p => p.ok).length;
+        const faltas = v.passageiros.filter(p => !p.ok).map(p => p.polt);
+        const agora = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+        const msg = encodeURIComponent(`*RESUMO DE EMBARQUE*\n\n🕒 *Horário:* ${v.hora}\n✅ *Embarcados:* ${emb}\n❌ *Faltam:* ${faltas.length} (Polt: ${faltas.join(", ")})\n🏁 *Saída:* ${agora}`);
         window.open(`https://wa.me/?text=${msg}`);
     }
 
-    function finalizarEmbarque() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        const v = viagens[atualIdx];
-        doc.text("Relatório de Embarque: " + v.hora + " - " + v.destino, 20, 20);
-        let y = 40;
-        v.passageiros.forEach(p => {
-            doc.text(`${p.polt} | ${p.nome.substring(0,25)} | ${p.bilhete} | ${p.ok ? 'OK' : 'FALTA'}`, 20, y);
-            y += 8;
-        });
-        doc.save(`Embarque_${v.hora}.pdf`);
-    }
+    window.onload = renderMenu;
 </script>
 </body>
 </html>
